@@ -1,0 +1,109 @@
+---
+title: "Final Analysis"
+author: "Om Mehta"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+set.seed(0)
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(corrplot)
+library(caret)
+```
+
+## Loading the dataset
+
+```{r}
+df <- read.csv("boston-housing-dataset.csv")
+df <- df[, -1]
+n <- nrow(df)
+```
+
+## dropping B
+
+```{r, echo = FALSE}
+df <- df[, -12]
+```
+
+### Part 2: Log-transformation of CRIM
+```{r prelim2, echo = FALSE}
+mod_prelim_2 <- lm(MEDV ~ CRIM, data = df)
+predicted_prelim_2 <- data.frame(MEDV_PRED = predict(mod_prelim_2, df), CRIM = df$CRIM)
+qplot(df$CRIM, df$MEDV) + stat_smooth() + geom_line(data = predicted_prelim_2, aes(x=CRIM, y=MEDV_PRED))
+summary(mod_prelim_2)
+```
+
+We notice the following:
+
+* the relationship between MEDV and CRIM appears to be an inverse relationship of the form $y = \frac{k}{x}$
+
+* there are too many points with high CRIM values
+```{r prelim2_highCRIM, echo = FALSE}
+100*sum(df$CRIM <= 5)/n
+```
+
+* $R^2$ is very low - the model doesn't fit well
+```{r prelim2_r_squared, echo = FALSE}
+summary(mod_prelim_2)$adj.r.squared
+```
+* the residuals do not have mean zero, constant variance, and are not normally distributed,
+```{r prelim2_residuals, echo = FALSE}
+epsilon_mod_prelim_2 <- mod_prelim_2$residuals
+plot(df$CRIM, epsilon_mod_prelim_2)
+abline(h = 0, lty = 2)
+qqnorm(epsilon_mod_prelim_2)
+qqline(epsilon_mod_prelim_2)
+```
+
+We deal with this problem by utilizing log(CRIM) instead of CRIM. This displays
+a somewhat more linear trend.
+
+```{r prelim2_transformCRIM, echo = FALSE}
+df$logCRIM <- log(df$CRIM)
+mod_prelim_2_new <- lm(MEDV ~ logCRIM, data = df)
+plot(df$logCRIM, df$MEDV)
+abline(a = mod_prelim_2_new$coefficients[1], b = mod_prelim_2_new$coefficients[2], lty = 2)
+summary(mod_prelim_2_new)
+```
+
+## transforming variables
+
+```{r, echo = FALSE}
+df$logINDUS <- log(df$INDUS)
+df$RAD.t <- ifelse(df$RAD == 24, 1, 0)
+df$logDIS <- log(df$DIS)
+df$logLSTAT <- log(df$LSTAT)
+```
+
+## HIST of MEDV
+```{r, echo = FALSE}
+hist(df$MEDV, main = "Histogram of MEDV", xlab = "MEDV")
+```
+##Summary df
+```{r}
+df_mod <- df[, -1][, -2][, -6][, -9][, -3][, -5][, -8]
+summary(df_mod)
+sum(df$CHAS == 1)
+sum(df$CHAS == 0)
+sum(df$RAD.t == 1)
+sum(df$RAD.t == 0)
+corrplot(cor(df_mod))
+```
+
+##Model
+```{r}
+mod <- lm(MEDV ~ .-CRIM -INDUS - DIS - LSTAT - RAD - NOX - logCRIM, data = df)
+summary(mod)
+mod_R2 <- summary(mod)$adj.r.squared
+epsilon_mod <- mod$residuals
+hist(epsilon_mod)
+boxplot(epsilon_mod)
+qqnorm(epsilon_mod)
+qqline(epsilon_mod)
+plot(mod$fitted.values,epsilon_mod)
+abline(h = 0, lty = 2)
+```
